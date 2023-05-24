@@ -1,0 +1,16 @@
+name: 'healthcheck-event'
+description: 'sends events to healthcheck resources'
+author: 'elisasre'
+inputs:
+  resourceid: 
+    required: true
+    description: 'id of resource in healthcheck'
+  event:
+    required: true
+    description: 'deployment or incident'
+  message:
+    required: true
+    description: 'additional information about event'
+runs:
+  using: 'node16'
+  main: 'dist/index.js'
