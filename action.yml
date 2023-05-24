@@ -1,0 +1,20 @@
+name: 'healthcheck-event'
+description: 'sends events to healthcheck resources'
+author: 'elisasre'
+inputs:
+  resourceid: 
+    required: true
+    description: 'id of resource in healthcheck'
+  type:
+    required: true
+    description: 'deployment or incident'
+  message:
+    required: true
+    description: 'additional information about event'
+  canary:
+    required: false
+    default: 'false'
+    description: 'target healthcheck canary environment'
+runs:
+  using: 'node16'
+  main: 'dist/index.js'
