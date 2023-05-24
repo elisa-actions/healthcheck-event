@@ -1,5 +1,5 @@
 import * as core from '@actions/core'
-import axios, {AxiosError, isAxiosError} from 'axios'
+import * as httpm from '@actions/http-client'
 
 type HealthcheckEvent = {
   message: string
@@ -7,30 +7,32 @@ type HealthcheckEvent = {
 }
 
 const sendEvent = async (
+  healthcheckUrl: string,
   token: string,
   resourceId: string,
   event: HealthcheckEvent
 ): Promise<void> => {
-  const healthcheckUrl = 'https://healthcheck.csf.elisa.fi'
-  const maxRetries = 5
+  const maxRetries = 3
   let retryCount = 0
 
+  const http = new httpm.HttpClient('healthcheck-event-action')
   while (retryCount < maxRetries) {
     try {
-      await axios.post(
+      await http.post(
         `${healthcheckUrl}/api/v1/resources/${resourceId}/events`,
-        event,
+        JSON.stringify(event),
         {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
+          Authorization: `Bearer ${token}`
         }
       )
       return
     } catch (error) {
       retryCount++
-      core.error(`Sending event failed: ${(error as AxiosError).message}`)
-      core.info(`Retrying (${retryCount}/${maxRetries})...`)
+      core.info(
+        `Sending event failed: ${
+          (error as Error).message
+        }, retrying (${retryCount}/${maxRetries})`
+      )
       const delay = Math.pow(2, retryCount) * 1000
       await new Promise(resolve => setTimeout(resolve, delay))
     }
@@ -41,10 +43,11 @@ const sendEvent = async (
 
 async function run(): Promise<void> {
   try {
-    const healthcheckUrl = 'http://healthcheck.csf.elisa.fi'
+    const healthcheckUrl =
+      'https://mgrkm4ait3.execute-api.eu-central-1.amazonaws.com/prod/test'
     const idToken = await core.getIDToken(healthcheckUrl)
 
-    const resourceId = core.getInput('resource-id', {required: true})
+    const resourceId = core.getInput('resourceid', {required: true})
     const message = core.getInput('message', {required: true})
     const event = core.getInput('event', {required: true})
 
@@ -60,13 +63,9 @@ async function run(): Promise<void> {
       event
     }
 
-    await sendEvent(idToken, resourceId, body)
+    await sendEvent(healthcheckUrl, idToken, resourceId, body)
   } catch (error) {
-    if (isAxiosError(error)) {
-      core.setFailed(error.message)
-    } else {
-      core.setFailed((error as Error).message)
-    }
+    core.setFailed((error as Error).message)
   }
 }
 
