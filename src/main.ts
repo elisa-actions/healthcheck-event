@@ -1,28 +1,35 @@
 import * as core from '@actions/core'
 import {HttpClient, HttpClientResponse} from '@actions/http-client'
+import { v4 as uuidv4 } from 'uuid';
 
-type HealthcheckEvent = {
+type EventPayload = {
   message: string
-  type: string
 }
 
-type HealthcheckError = {
+type Event = {
+  payload: EventPayload
+  sourceEventID: string
+  eventType: string
+  startTime: string
+  componentID: number
+}
+
+type ErrorResponse = {
   code: number
   message: string
 }
 
 const sendEvent = async (
-  healthcheckUrl: string,
+  baseUrl: string,
   canary: boolean,
   token: string,
-  resourceId: string,
-  event: HealthcheckEvent
+  event: Event
 ): Promise<HttpClientResponse> => {
   const maxRetries = 3
   let retryCount = 0
 
-  const http = new HttpClient('healthcheck-event-action')
-  const eventUrl = `${healthcheckUrl}/v1/management/resource/${resourceId}/event`
+  const http = new HttpClient('health-event-action')
+  const eventUrl = `${baseUrl}/v1/components/${event.componentID}/events`
   core.debug(`Sending event to ${eventUrl}`)
 
   const headers: Record<string, string> = {
@@ -53,31 +60,37 @@ const sendEvent = async (
 
 async function run(): Promise<void> {
   try {
-    const healthcheckUrl = 'https://healthcheck.csf.elisa.fi'
-    const idToken = await core.getIDToken(healthcheckUrl)
+    const baseUrl = core.getInput('healthBaseUrl') || 'https://health.csf.elisa.fi'
+    const idToken = await core.getIDToken(baseUrl)
 
-    const resourceId = core.getInput('resourceid', {required: true})
+    const componentId = core.getInput('componentid', {required: true})
     const message = core.getInput('message', {required: true})
-    const type = core.getInput('type', {required: true})
+    const eventType = core.getInput('type', {required: true})
     const canary = core.getInput('canary', {required: false}) === 'true'
+    const eventId = uuidv4()
 
-    if (!['deployment', 'incident'].includes(type)) {
+    const eventTypes = ['deployment']
+    if (!eventTypes.includes(eventType)) {
       core.setFailed(
-        `Invalid event type: ${type}. Must be one of: deployment, incident`
+        `Invalid event type: ${eventType}. Must be one of: deployment`
       )
       return
     }
 
-    const event: HealthcheckEvent = {
-      message,
-      type
+    const event: Event = {
+      payload: {
+        message: message
+      },
+      sourceEventID: eventId,
+      eventType: eventType,
+      startTime: new Date().toISOString(),
+      componentID: parseInt(componentId)
     }
 
     const res = await sendEvent(
-      healthcheckUrl,
+      baseUrl,
       canary,
       idToken,
-      resourceId,
       event
     )
     const responseBody = await res.readBody()
@@ -87,10 +100,10 @@ async function run(): Promise<void> {
     core.debug(`Response headers: ${JSON.stringify(res.message.headers)}`)
 
     if (res.message.statusCode && res.message.statusCode > 299) {
-      const healthcheckErrorResponse: HealthcheckError =
+      const errorResponse: ErrorResponse =
         JSON.parse(responseBody)
       core.setFailed(
-        `Failed to send event: ${healthcheckErrorResponse.message}`
+        `Failed to send event: ${errorResponse.message}`
       )
     }
   } catch (error) {

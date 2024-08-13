@@ -20,7 +20,7 @@ The action takes a resource id, type of deployment or incident, and a message re
     - name: Send event info to Healthcheck
       uses: elisa-actions/healthcheck-event@v1
       with:
-        resourceid: <id number of your resource>
-        type: deployment/incident
+        componentid: <id number of your resource>
+        type: deployment
         message: <any text>
 ```
